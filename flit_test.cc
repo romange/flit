@@ -26,7 +26,7 @@ inline int flit64enc(void* buf, uint64_t v) {
   }
 
   // count extra bytes
-  int e = (63 - lzc) / 7;
+  unsigned e = ((63 - lzc) * 2454267027) >> 34;  // (63 - lzc) / 7
 
   v <<= 1;
   v |= 1;
@@ -37,15 +37,14 @@ inline int flit64enc(void* buf, uint64_t v) {
 }
 
 inline int flit64dec(uint64_t* v, const void* buf) {
-  uint64_t* p = (uint64_t*)buf;
-  uint64_t x = *p;
+  uint64_t x = *(uint64_t*)buf;
 
   int tzc = 8;
   if (x) tzc = __builtin_ctzll(x);
   if (tzc > 7) {
-    uint8_t c = *(uint8_t*)(++p);
-    *v = x >> 8 | (uint64_t)c << 56;
-    return 9;
+   const uint8_t* cp = (const uint8_t*)buf + 1;
+   *v = *(const uint64_t*)cp;
+   return 9;
   }
 
   static const uint64_t mask[8] = {
@@ -72,11 +71,11 @@ class FlitTest : public testing::Test {
 
 protected:
   unsigned Flit64(uint64_t val) {
-    return EncodeFlit64(val, buf_) - buf_;
+    return EncodeFlit64(val, buf_);
   }
 
   unsigned UnFlit64(uint64_t* val) {
-    return ParseFlit64Fast(buf_, val) - buf_;
+    return ParseFlit64Fast(buf_, val);
   }
 
   uint8_t buf_[9];
@@ -112,7 +111,7 @@ uint64_t RandUint64() {
 static void FillEncoded(uint8_t* buf, unsigned num) {
   for (unsigned i = 0; i < num; ++i) {
     volatile uint64_t val = RandUint64();
-    buf = EncodeFlit64(val, buf);
+    buf += EncodeFlit64(val, buf);
   }
 }
 
@@ -125,14 +124,15 @@ constexpr std::size_t countof(T const (&)[N]) noexcept
 static void BM_FlitEncode(benchmark::State& state) {
   uint64_t input[1024];
   std::generate(input, input + countof(input), RandUint64);
-  uint8_t buf[1024];
+  uint8_t buf[1024 * 10];
 
   while (state.KeepRunning()) {
+    uint8_t* next = buf;
     for (unsigned i = 0; i < countof(input); i +=4) {
-      benchmark::DoNotOptimize(EncodeFlit64(input[i], buf));
-      benchmark::DoNotOptimize(EncodeFlit64(input[i] + 1, buf + 9));
-      benchmark::DoNotOptimize(EncodeFlit64(input[i] + 2, buf + 18));
-      benchmark::DoNotOptimize(EncodeFlit64(input[i] + 3, buf + 27));
+      next += EncodeFlit64(input[i], next);
+      next += EncodeFlit64(input[i] + 1, next);
+      next += EncodeFlit64(input[i] + 2, next);
+      next += EncodeFlit64(input[i] + 3, next);
     }
   }
 }
@@ -141,15 +141,15 @@ BENCHMARK(BM_FlitEncode);
 static void BM_FlitEncodeGold(benchmark::State& state) {
   uint64_t input[1024];
   std::generate(input, input + countof(input), RandUint64);
-  uint8_t buf[1024];
+  uint8_t buf[1024 * 10];
 
   while (state.KeepRunning()) {
+    uint8_t* next = buf;
     for (unsigned i = 0; i < countof(input); i +=4) {
-
-      benchmark::DoNotOptimize(flit64enc(buf + 0, input[i]));
-      benchmark::DoNotOptimize(flit64enc(buf + 9, input[i] + 1));
-      benchmark::DoNotOptimize(flit64enc(buf + 18, input[i] + 2));
-      benchmark::DoNotOptimize(flit64enc(buf + 27, input[i] + 3));
+      next += flit64enc(next, input[i]);
+      next += flit64enc(next, input[i] + 1);
+      next += flit64enc(next, input[i] + 2);
+      next += flit64enc(next, input[i] + 3);
     }
   }
 }
@@ -164,11 +164,12 @@ static void BM_FlitDecode(benchmark::State& state) {
     uint64_t val = 0;
     const uint8_t* rn = buf;
     for (unsigned i = 0; i < 1024 /4; ++i) {
-      rn = ParseFlit64Fast(rn, &val);
-      rn = ParseFlit64Fast(rn, &val);
-      rn = ParseFlit64Fast(rn, &val);
-      rn = ParseFlit64Fast(rn, &val);
-      benchmark::DoNotOptimize(val);
+      rn += ParseFlit64Fast(rn, &val);
+      rn += ParseFlit64Fast(rn, &val);
+      rn += ParseFlit64Fast(rn, &val);
+      rn += ParseFlit64Fast(rn, &val);
+
+      benchmark::DoNotOptimize(rn);
     }
   }
 }
@@ -186,7 +187,7 @@ static void BM_FlitDecodeGold(benchmark::State& state) {
       rn += flit64dec(&val, rn);
       rn += flit64dec(&val, rn);
       rn += flit64dec(&val, rn);
-      benchmark::DoNotOptimize(val);
+      benchmark::DoNotOptimize(rn);
     }
   }
 }

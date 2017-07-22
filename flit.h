@@ -29,11 +29,11 @@ inline uint64_t FindMSBSet64NonZero(uint64_t n) {
 // Decodes buf into v and returns the pointer to the next byte after decoded chunk.
 // Requires that src points to buffer that has at least 8 bytes and
 // it assumes that the input is valid.
-inline const uint8_t* ParseFlit64Fast(const uint8_t* src, uint64_t* v) {
-	if (*src == 0) {
-		++src;
-		*v = *reinterpret_cast<const uint64_t*>(src);
-		return src + 8;
+inline const unsigned ParseFlit64Fast(const uint8_t* src, uint64_t* v) {
+  if (*src == 0) {
+    ++src;
+    *v = *reinterpret_cast<const uint64_t*>(src);
+    return 9;
   }
 
   *v = *reinterpret_cast<const uint64_t*>(src);
@@ -63,7 +63,7 @@ inline const uint8_t* ParseFlit64Fast(const uint8_t* src, uint64_t* v) {
 
   *v >>= index;
 
-	return src + index;
+  return index;
 }
 
 #undef USE_MASK
@@ -94,19 +94,25 @@ inline const uint8_t* ParseFlit64Safe(const uint8_t* begin, const uint8_t* end, 
 
 // Encodes v into buf and returns pointer to the next byte.
 // dest must have at least 9 bytes.
-inline uint8_t* EncodeFlit64(uint64_t v, uint8_t* dest) {
-	if (v >= (1ULL << 56)) {
-		*dest++ = 0;
-		*reinterpret_cast<uint64_t*>(dest) = v;
-		return dest + 8;
-	}
-	uint64_t index = FindMSBSet64NonZero(v | 1);
-	uint64_t num_bytes = index / 7;
-	v <<= 1;
-	v |= 1UL;
-	v <<= num_bytes;
-	*reinterpret_cast<uint64_t*>(dest) = v;
-	return dest + num_bytes + 1;
+inline unsigned EncodeFlit64(uint64_t v, uint8_t* dest) {
+  if (v < 128) {
+    *(uint8_t*)dest = (uint8_t)v << 1 | 1;
+    return 1;
+  }
+  uint32_t index = FindMSBSet64NonZero(v);
+  if (v >= (1ULL << 56)) {
+    *dest++ = 0;
+    *reinterpret_cast<uint64_t*>(dest) = v;
+    return 9;
+  }
+  uint32_t num_bytes = (index * 2454267027) >> 34;
+
+  v <<= 1;
+  v |= 1UL;
+  v <<= num_bytes;
+  *reinterpret_cast<uint64_t*>(dest) = v;
+
+  return num_bytes + 1;
 }
 
 }  // namespace flit
