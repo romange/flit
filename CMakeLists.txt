@@ -6,7 +6,7 @@ include(CTest)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wno-deprecated-declarations -O3 -Wall -Wno-sign-compare")
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -fno-omit-frame-pointer -fPIC")
 
 if (CMAKE_VERSION VERSION_LESS 3.2)
     set(UPDATE_DISCONNECTED_IF_AVAILABLE "")

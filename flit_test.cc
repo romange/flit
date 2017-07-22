@@ -124,10 +124,10 @@ constexpr std::size_t countof(T const (&)[N]) noexcept
 static void BM_FlitEncode(benchmark::State& state) {
   uint64_t input[1024];
   std::generate(input, input + countof(input), RandUint64);
-  uint8_t buf[1024 * 10];
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[1024 * 10]);
 
   while (state.KeepRunning()) {
-    uint8_t* next = buf;
+    uint8_t* next = buf.get();
     for (unsigned i = 0; i < countof(input); i +=4) {
       next += EncodeFlit64(input[i], next);
       next += EncodeFlit64(input[i] + 1, next);
